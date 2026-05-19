@@ -3,7 +3,7 @@
  * 核心游戏逻辑管理器
  */
 
-import { Node, Sprite, SpriteFrame, Vec3, tween, UIOpacity } from 'cc';
+import { Node, Sprite, SpriteFrame, Vec3, tween, UIOpacity, resources, Color, UITransform } from 'cc';
 import { SingletonClass } from '../managers/SingletonClass';
 import { EventName } from '../const/EventName';
 import {
@@ -20,7 +20,7 @@ export class GameManager extends SingletonClass<GameManager> {
 
     // ===== 当前预览 =====
     private previewBlock: Node | null = null;
-    private previewType: number = 0;
+    private previewType: string = '';
 
     // ===== 分数 =====
     private score: number = 0;
@@ -40,21 +40,20 @@ export class GameManager extends SingletonClass<GameManager> {
         this.initBoard();
     }
 
-    /**
-     * 初始化（App调用）
-     */
     public init(): void {
         this.preloadSprites();
     }
 
-    /**
-     * 设置游戏根节点（GameView调用）
-     */
     public setGameRoot(root: Node): void {
         this.gameRoot = root;
     }
 
-    // ===== 单例（静态入口）=====
+    // ===== 外部设置精灵帧 =====
+    public setSpriteFrame(type: string, sf: SpriteFrame): void {
+        this.blockFrames.set(type, sf);
+    }
+
+    // ===== 单例 =====
     public static getInstance(): GameManager {
         return SingletonClass.getInstance<GameManager>(GameManager);
     }
@@ -70,22 +69,53 @@ export class GameManager extends SingletonClass<GameManager> {
     }
 
     // ===== 预加载精灵 =====
-    private async preloadSprites(): Promise<void> {
-        const allBlocks = [...BLOCK_TYPES];
-        for (const blockType of allBlocks) {
+    private preloadSprites(): void {
+        for (const blockType of BLOCK_TYPES) {
             const path = `sprites/block_${blockType}`;
-            const sf = await this.loadSF(path);
-            if (sf) this.blockFrames.set(blockType, sf);
+            resources.load(path, SpriteFrame, (err: any, asset: any) => {
+                if (!err && asset) this.blockFrames.set(blockType, asset);
+            });
         }
     }
 
-    private loadSF(path: string): Promise<SpriteFrame | null> {
-        return new Promise((resolve) => {
-            const { resources } = cc;
-            resources.load(path, SpriteFrame, (err: any, asset: any) => {
-                resolve(err ? null : asset);
-            });
-        });
+    // ===== 获取方块颜色（无精灵时用纯色） =====
+    private getBlockColor(type: string): { r: number, g: number, b: number } {
+        const colors: Record<string, { r: number, g: number, b: number }> = {
+            red:    { r: 255, g: 80, b: 80 },
+            orange: { r: 255, g: 160, b: 50 },
+            yellow: { r: 255, g: 230, b: 50 },
+            green:  { r: 80, g: 200, b: 80 },
+            blue:   { r: 80, g: 140, b: 255 },
+            purple: { r: 180, g: 80, b: 255 },
+        };
+        return colors[type] || { r: 200, g: 200, b: 200 };
+    }
+
+    // ===== 创建方块节点 =====
+    private createBlockNode(type: string, parent: Node): Node {
+        const node = new Node(type);
+        const sprite = node.addComponent(Sprite);
+        sprite.type = Sprite.Type.SIMPLE;
+        sprite.sizeMode = Sprite.SizeMode.CUSTOM;
+
+        const sf = this.blockFrames.get(type);
+        if (sf) {
+            sprite.spriteFrame = sf;
+        }
+
+        // 设置大小
+        const uiTransform = node.getComponent(UITransform) || node.addComponent(UITransform);
+        const uit = node.getComponent(UITransform) || node.addComponent(UITransform);
+        uit.setContentSize(CELL_SIZE - 4, CELL_SIZE - 4);
+
+        // 如果没有精灵帧，设置纯色
+        if (!sf) {
+            const c = this.getBlockColor(type);
+            sprite.color = new Color(c.r, c.g, c.b, 255);
+        }
+
+        node.parent = parent;
+        return node;
     }
 
     // ===== 游戏控制 =====
@@ -93,6 +123,7 @@ export class GameManager extends SingletonClass<GameManager> {
         this.isPlaying = true;
         this.score = 0;
         this.clearBoard();
+        this.initBoard();
         App.event.emit(EventName.SCORE_UPDATE, 0);
         this.spawnPreview();
         App.event.emit(EventName.GAME_START);
@@ -113,41 +144,38 @@ export class GameManager extends SingletonClass<GameManager> {
 
     // ===== 预览方块 =====
     private spawnPreview(): void {
+        if (!this.gameRoot) return;
+
         const available = BLOCK_TYPES.slice(0, 4);
-        this.previewType = Math.floor(Math.random() * available.length);
-        const typeName = String(available[this.previewType]);
+        this.previewType = available[Math.floor(Math.random() * available.length)];
 
         if (this.previewBlock) this.previewBlock.destroy();
 
-        const frame = this.blockFrames.get(typeName);
-        if (!frame || !this.gameRoot) return;
-
-        const node = new Node(typeName);
-        node.addComponent(Sprite).spriteFrame = frame;
-        node.parent = this.gameRoot;
-        node.setPosition(0, 500, 0);
-        this.previewBlock = node;
+        this.previewBlock = this.createBlockNode(this.previewType, this.gameRoot);
+        this.previewBlock.setPosition(0, BOARD_OFFSET_Y + BOARD_HEIGHT * CELL_SIZE + 60, 0);
     }
 
     // ===== 下落 =====
     public dropBlock(worldX: number): void {
         if (!this.isPlaying || !this.previewBlock || !this.gameRoot) return;
 
-        const frame = this.previewBlock.getComponent(Sprite)?.spriteFrame;
-        const typeName = this.previewBlock.name;
+        const type = this.previewType;
+        const block = this.createBlockNode(type, this.gameRoot);
 
-        const block = new Node(typeName);
-        block.addComponent(Sprite).spriteFrame = frame;
-        block.parent = this.gameRoot;
-        block.setPosition(worldX, 500, 0);
-
-        (block as any)._blockType = typeName;
+        block.setPosition(worldX, BOARD_OFFSET_Y + BOARD_HEIGHT * CELL_SIZE, 0);
+        (block as any)._blockType = type;
         this.activeBlocks.push(block);
+
+        if (this.previewBlock) {
+            this.previewBlock.destroy();
+            this.previewBlock = null;
+        }
+
         this.fallBlock(block, worldX);
     }
 
     private fallBlock(block: Node, startX: number): void {
-        let currentY = 500;
+        let currentY = BOARD_OFFSET_Y + BOARD_HEIGHT * CELL_SIZE;
         let landed = false;
 
         const fall = () => {
@@ -159,12 +187,14 @@ export class GameManager extends SingletonClass<GameManager> {
 
             if (gy <= 0) {
                 this.landBlock(block, gx, 0);
-                landed = true; return;
+                landed = true;
+                return;
             }
 
             if (gy > 0 && gy < BOARD_HEIGHT && this.board[gx][gy]) {
                 this.landBlock(block, gx, gy + 1);
-                landed = true; return;
+                landed = true;
+                return;
             }
 
             block.setPosition(startX, currentY, 0);
@@ -191,7 +221,8 @@ export class GameManager extends SingletonClass<GameManager> {
         this.board[gx][gy] = block;
 
         if (this.checkGameOver()) {
-            this.gameOver(); return;
+            this.gameOver();
+            return;
         }
 
         this.spawnPreview();
@@ -328,6 +359,7 @@ export class GameManager extends SingletonClass<GameManager> {
     // ===== 分数 =====
     private addScore(points: number): void {
         this.score += points;
+        if (this.score > this.highScore) this.highScore = this.score;
         App.event.emit(EventName.SCORE_UPDATE, this.score);
         App.event.emit(EventName.SCORE_ADD, points);
     }

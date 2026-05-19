@@ -20,7 +20,7 @@ class GameApp extends SingletonClass<GameApp> {
     get view(): ViewManager { return ViewManager.getInstance(ViewManager); }
     get event(): EventManager { return EventManager.getInstance(EventManager); }
     get audio(): AudioManager { return AudioManager.getInstance(AudioManager); }
-    get game(): GameManager { return GameManager.getInstance(GameManager); }
+    get game(): GameManager { return GameManager.getInstance(); }
 
     /**
      * 初始化（main.ts调用）
