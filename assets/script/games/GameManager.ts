@@ -81,7 +81,7 @@ export class GameManager extends SingletonClass<GameManager> {
 
     private loadSF(path: string): Promise<SpriteFrame | null> {
         return new Promise((resolve) => {
-            const { resources } = require('cc');
+            const { resources } = cc;
             resources.load(path, SpriteFrame, (err: any, asset: any) => {
                 resolve(err ? null : asset);
             });

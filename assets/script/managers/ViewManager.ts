@@ -3,11 +3,10 @@
  * UI视图管理器（参考货柜归位大闯关的结构）
  */
 
-import { instantiate, Prefab, Node, director, isValid } from 'cc';
+import { instantiate, Prefab, Node, director, isValid, Component } from 'cc';
 import { SingletonClass } from './SingletonClass';
 import { BaseView, WindowOpenType } from '../components/BaseView';
 import { ResLoadHelper } from './ResLoadHelper';
-import { ViewScript } from '../const/ViewName';
 
 interface WaitData {
     name: string;
@@ -73,17 +72,8 @@ export class ViewManager extends SingletonClass<ViewManager> {
         root.addChild(viewNode);
         viewNode.setPosition(0, 0, 0);
 
-        // 挂载脚本
-        const scriptName = ViewScript[viewName];
-        if (scriptName) {
-            let cmpt = viewNode.getComponent(scriptName);
-            if (!cmpt) {
-                cmpt = viewNode.addComponent(scriptName);
-            }
-        }
-
-        // 获取BaseView组件
-        const viewCmpt = viewNode.getComponent(BaseView);
+        // 获取BaseView组件（预制体上应已挂好对应脚本，继承自BaseView）
+        let viewCmpt = viewNode.getComponent(BaseView);
         if (!viewCmpt) {
             console.error(`[ViewManager] BaseView not found: ${viewName}`);
             viewNode.destroy();
