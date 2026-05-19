@@ -54,9 +54,9 @@ export class GameManager extends SingletonClass<GameManager> {
         this.gameRoot = root;
     }
 
-    // ===== 单例 =====
+    // ===== 单例（静态入口）=====
     public static getInstance(): GameManager {
-        return GameManager.getInstance(GameManager);
+        return SingletonClass.getInstance<GameManager>(GameManager);
     }
 
     // ===== 棋盘 =====
