@@ -3,7 +3,7 @@
  * 游戏主界面视图
  */
 
-import { _decorator, Component, Node, Label, Color, Sprite, EventTouch, Vec3, tween, _decorator } from 'cc';
+import { _decorator, Component, Node, Label, Color, Sprite, EventTouch, Vec3, tween } from 'cc';
 import { BaseView } from '../../components/BaseView';
 import { App } from '../../App';
 import { EventName } from '../../const/EventName';
